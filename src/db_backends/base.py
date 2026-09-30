@@ -61,3 +61,8 @@ class DatabaseBackend(ABC):
     def insert_scientific_metadata_batch(self, records):
         """Insert and commit one batch of scientific metadata records."""
         ...
+
+    @abstractmethod
+    def query_scientific_metadata_range(self, first, last):
+        """Return records with first <= record_id < last, ordered by ID."""
+        ...

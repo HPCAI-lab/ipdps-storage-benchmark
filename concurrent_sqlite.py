@@ -21,6 +21,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from db_backends.sqlite_backend import SQLiteBackend
 from workloads.telemetry_workload import TelemetryWorkload
 from storage import StorageManager
+from read_phase import run_read_phase
 from pilot_workloads import build_workload
 
 
@@ -207,6 +208,9 @@ def run(cfg, result):
         if checkpoint[0] != 0:
             raise RuntimeError(f"Checkpoint was busy: {checkpoint}")
 
+        if cfg.get("read_queries", 0):
+            result.update(run_read_phase(cfg, db_path))
+
         result.update({
             "success": True,
             "committed_records": committed,
@@ -258,11 +262,17 @@ def main():
     parser.add_argument("--batch-size", type=int, default=1000)
     parser.add_argument("--seed", type=int, default=20260814)
     parser.add_argument("--timeout", type=int, default=300)
+    parser.add_argument("--read-queries", type=int, default=0)
+    parser.add_argument("--query-window", type=int, default=100)
     args = parser.parse_args()
     cfg = vars(args)
 
     if min(args.clients, args.records, args.batch_size, args.timeout) < 1:
         parser.error("Counts and timeout must be positive")
+    if args.read_queries < 0 or args.read_queries > 100000:
+        parser.error("read-queries must be between 0 and 100000")
+    if args.read_queries and (args.read_queries < args.clients or not 1 <= args.query_window <= args.records):
+        parser.error("Need at least one query per client and a valid query window")
     batches = math.ceil(args.records / args.batch_size)
     if batches < args.clients:
         parser.error("Need at least one batch per client")

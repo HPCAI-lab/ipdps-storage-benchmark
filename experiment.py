@@ -23,6 +23,9 @@ FIELDS = [
     "transaction_latency_p95_ms", "transaction_latency_p99_ms",
     "committed_records", "stored_records", "transactions",
     "final_checkpoint_s", "completion_wall_s", "completion_throughput_records_s",
+    "read_queries", "query_window", "read_queries_completed", "read_rows_returned",
+    "read_wall_s", "read_queries_per_s", "read_latency_mean_ms",
+    "read_latency_p50_ms", "read_latency_p95_ms", "read_latency_p99_ms",
     "error", "raw_file",
 ]
 
@@ -52,6 +55,13 @@ def build_plan(cfg):
         raise ValueError("Pilot latency collection supports at most 100000 transactions")
     if any(type(c) is not int or c < 1 or c > batches for c in cfg["clients"]):
         raise ValueError("Each client must receive at least one batch")
+    queries, window = cfg["read_queries"], cfg["query_window"]
+    if type(queries) is not int or not 0 <= queries <= 100000:
+        raise ValueError("read_queries must be an integer from 0 to 100000")
+    if type(window) is not int or not 1 <= window <= cfg["records"]:
+        raise ValueError("query_window must be between 1 and records")
+    if queries and queries < max(cfg["clients"]):
+        raise ValueError("Each client must receive at least one query")
     rng = random.Random(cfg["seed"])
     plan = []
     for phase, count in (("warmup", cfg["warmup_repetitions"]),
@@ -89,7 +99,7 @@ def main():
     output.mkdir(parents=True)
     (output / "config.yaml").write_text(yaml.safe_dump(cfg))
     (output / "plan.json").write_text(json.dumps(plan, indent=2) + "\n")
-    paths = [ROOT / "experiment.py", ROOT / "concurrent_sqlite.py", ROOT / "storage.py", ROOT / "pilot_workloads.py"]
+    paths = [ROOT / "experiment.py", ROOT / "concurrent_sqlite.py", ROOT / "storage.py", ROOT / "pilot_workloads.py", ROOT / "read_phase.py"]
     paths += sorted((ROOT / "src").rglob("*.py"))
     hashes = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
     (output / "source_hashes.json").write_text(json.dumps(hashes, indent=2) + "\n")
@@ -101,7 +111,7 @@ def main():
         stream.flush()
         os.fsync(stream.fileno())
         for trial, item in enumerate(plan, 1):
-            trial_cfg = {k: cfg[k] for k in ("records", "batch_size", "timeout", "workload")}
+            trial_cfg = {k: cfg[k] for k in ("records", "batch_size", "timeout", "workload", "read_queries", "query_window")}
             trial_cfg.update({k: item[k] for k in ("storage", "clients", "seed")})
             result = dict(config=trial_cfg, success=False, trial=trial,
                           phase=item["phase"], repetition=item["repetition"],

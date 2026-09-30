@@ -160,3 +160,11 @@ class SQLiteBackend(DatabaseBackend):
             records,
         )
         self.conn.commit()
+
+    def query_scientific_metadata_range(self, first, last):
+        return self.conn.execute(
+            "SELECT record_id, timestep, variable, location, value "
+            "FROM scientific_metadata "
+            "WHERE record_id >= ? AND record_id < ? ORDER BY record_id",
+            (first, last),
+        ).fetchall()

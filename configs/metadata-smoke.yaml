@@ -4,6 +4,8 @@ clients:
 - 16
 - 64
 database: sqlite
+query_window: 100
+read_queries: 128
 records: 128000
 repetitions: 1
 runtime: native

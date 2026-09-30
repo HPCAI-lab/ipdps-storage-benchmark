@@ -1,13 +1,18 @@
-database: sqlite
-runtime: native
-workload: telemetry
-
-storage: [lustre, tmpfs]
-clients: [1, 16, 64]
-
-records: 128000
 batch_size: 1000
+clients:
+- 1
+- 16
+- 64
+database: sqlite
+query_window: 100
+read_queries: 128
+records: 128000
 repetitions: 1
-warmup_repetitions: 0
+runtime: native
 seed: 20260814
+storage:
+- lustre
+- tmpfs
 timeout: 120
+warmup_repetitions: 0
+workload: telemetry
