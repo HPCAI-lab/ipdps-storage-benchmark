@@ -1,0 +1,19 @@
+batch_size: 1000
+clients:
+- 1
+- 16
+- 64
+database: sqlite
+query_window: 100
+read_queries: 64000
+records: 1000000
+repetitions: 5
+runtime: shifter
+seed: 20260814
+storage:
+- lustre
+- tmpfs
+timeout: 300
+warmup_repetitions: 1
+workload: telemetry
+shifter_image_id: 366e975effc41801a615a88b44c609e98932ed1247531b4d1a777c4b70f3e6ac

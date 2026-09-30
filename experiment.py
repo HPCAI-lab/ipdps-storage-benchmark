@@ -1,4 +1,4 @@
-"""Configuration-driven native SQLite telemetry pilot controller."""
+"""Configuration-driven native and Shifter SQLite controller."""
 import argparse
 import csv
 import hashlib
@@ -30,14 +30,22 @@ FIELDS = [
     "error", "raw_file",
 ]
 FIELDS += SUMMARY_FIELDS
+FIELDS += ["database", "runtime", "python_version", "sqlite_version", "shifter_image_id"]
 
 
 def build_plan(cfg):
     if cfg.get("workload") not in ("metadata", "telemetry"):
         raise ValueError("workload must be metadata or telemetry")
-    for key, supported in (("database", "sqlite"), ("runtime", "native")):
-        if cfg.get(key) != supported:
-            raise ValueError(f"This controller currently requires {key}={supported}")
+    if cfg.get("database") != "sqlite":
+        raise ValueError("This controller currently requires database=sqlite")
+    if cfg.get("runtime") not in ("native", "shifter"):
+        raise ValueError("runtime must be native or shifter")
+    if cfg["runtime"] == "shifter":
+        image_id = cfg.get("shifter_image_id", "")
+        if not isinstance(image_id, str) or len(image_id) != 64 or any(
+            c not in "0123456789abcdef" for c in image_id
+        ):
+            raise ValueError("Shifter requires a pinned 64-character image ID")
     for key in ("records", "batch_size", "repetitions", "timeout"):
         if type(cfg[key]) is not int or cfg[key] < 1:
             raise ValueError(f"{key} must be a positive integer")
@@ -78,10 +86,23 @@ def build_plan(cfg):
     return plan
 
 
+def verify_runtime(cfg):
+    image_id = os.environ.get("SHIFTER_IMAGE", "")
+    marker = os.environ.get("IPDPS_RUNTIME", "native")
+    if cfg["runtime"] == "shifter":
+        if marker != "shifter" or image_id != cfg["shifter_image_id"]:
+            raise ValueError("Shifter runtime/image mismatch; use hpc/ipdps_shifter.sh")
+        return image_id
+    if marker != "native" or image_id:
+        raise ValueError("Native run has container markers; check the launch environment")
+    return ""
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--output-root", default=str(ROOT / "results"))
     args = parser.parse_args()
     cfg = yaml.safe_load(Path(args.config).read_text())
     plan = build_plan(cfg)
@@ -95,14 +116,16 @@ def main():
     if len(os.sched_getaffinity(0)) < max(cfg["clients"]):
         parser.error("Too few available logical CPUs for the requested client count")
 
+    image_id = verify_runtime(cfg)
     from concurrent_sqlite import run
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    output = ROOT / "results" / f"{stamp}-{uuid.uuid4().hex[:8]}"
+    output = Path(args.output_root).resolve() / f"{stamp}-{uuid.uuid4().hex[:8]}"
     output.mkdir(parents=True)
     (output / "config.yaml").write_text(yaml.safe_dump(cfg))
     (output / "plan.json").write_text(json.dumps(plan, indent=2) + "\n")
     paths = [ROOT / "experiment.py", ROOT / "concurrent_sqlite.py", ROOT / "storage.py", ROOT / "pilot_workloads.py", ROOT / "read_phase.py", ROOT / "process_metrics.py"]
     paths += sorted((ROOT / "src").rglob("*.py"))
+    paths += sorted((ROOT / "hpc").glob("*.sh"))
     hashes = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
     (output / "source_hashes.json").write_text(json.dumps(hashes, indent=2) + "\n")
     print(f"RESULTS={output}", flush=True)
@@ -117,7 +140,8 @@ def main():
             trial_cfg.update({k: item[k] for k in ("storage", "clients", "seed")})
             result = dict(config=trial_cfg, success=False, trial=trial,
                           phase=item["phase"], repetition=item["repetition"],
-                          database="sqlite", runtime="native", workload=cfg["workload"],
+                          database="sqlite", runtime=cfg["runtime"], workload=cfg["workload"],
+                          shifter_image_id=image_id,
                           hostname=socket.gethostname(), slurm_job_id=os.environ["SLURM_JOB_ID"],
                           python_version=platform.python_version(), sqlite_version=sqlite3.sqlite_version,
                           available_cpus=sorted(os.sched_getaffinity(0)),
