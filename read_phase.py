@@ -5,6 +5,7 @@ import random
 import time
 from datetime import datetime, timedelta, timezone
 
+from process_metrics import process_snapshot, process_delta, summarize_resources
 from db_backends.sqlite_backend import SQLiteBackend
 
 
@@ -20,6 +21,7 @@ def read_worker(worker_id, cfg, db_path, start_event, messages):
         if not start_event.wait(cfg["timeout"]):
             raise TimeoutError("Read phase start timed out")
 
+        usage_start = process_snapshot()
         for query_id in range(worker_id, cfg["read_queries"], cfg["clients"]):
             rng = random.Random(cfg["seed"] + 1000000000 + query_id)
             first = rng.randrange(cfg["records"] - cfg["query_window"] + 1)
@@ -48,11 +50,12 @@ def read_worker(worker_id, cfg, db_path, start_event, messages):
                 raise RuntimeError(f"Wrong returned keys for query {query_id}")
 
         finished = time.perf_counter()
+        metrics = process_delta(usage_start)
         backend.close()
         backend = None
         messages.put({
             "kind": "done", "worker": worker_id,
-            "finished": finished, "latencies_ms": latencies,
+            "finished": finished, "latencies_ms": latencies, "resources": metrics,
         })
     except Exception as exc:
         messages.put({
@@ -116,6 +119,7 @@ def run_read_phase(cfg, db_path):
             return values[lo] + (values[hi] - values[lo]) * (position - lo)
 
         return {
+            **summarize_resources(done, "read", elapsed),
             "read_cache_state": "warm_after_write_checkpoint_and_validation",
             "read_query_type": (
                 "record_id_range" if cfg["workload"] == "metadata"

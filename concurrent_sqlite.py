@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from db_backends.sqlite_backend import SQLiteBackend
 from workloads.telemetry_workload import TelemetryWorkload
+from process_metrics import process_snapshot, process_delta, summarize_resources
 from storage import StorageManager
 from read_phase import run_read_phase
 from pilot_workloads import build_workload
@@ -44,6 +45,7 @@ def worker(worker_id, cfg, db_path, start_event, messages):
         if not start_event.wait(cfg["timeout"]):
             raise TimeoutError("Timed out waiting for synchronized start")
 
+        usage_start = process_snapshot()
         batches = math.ceil(cfg["records"] / cfg["batch_size"])
         for batch_id in range(worker_id, batches, cfg["clients"]):
             first = batch_id * cfg["batch_size"]
@@ -60,12 +62,13 @@ def worker(worker_id, cfg, db_path, start_event, messages):
             committed += len(records)
 
         finished = time.perf_counter()
+        metrics = process_delta(usage_start)
         backend.close()
         backend = None
         messages.put({
             "kind": "done", "worker": worker_id,
             "committed": committed, "finished": finished,
-            "latencies_ms": latencies,
+            "latencies_ms": latencies, "resources": metrics,
         })
     except Exception as exc:
         messages.put({
@@ -207,6 +210,8 @@ def run(cfg, result):
             raise RuntimeError("Uniqueness or database integrity check failed")
         if checkpoint[0] != 0:
             raise RuntimeError(f"Checkpoint was busy: {checkpoint}")
+
+        result.update(summarize_resources(completed, "write", elapsed))
 
         if cfg.get("read_queries", 0):
             result.update(run_read_phase(cfg, db_path))

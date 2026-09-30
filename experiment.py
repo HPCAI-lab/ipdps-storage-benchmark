@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
+from process_metrics import SUMMARY_FIELDS
 
 ROOT = Path(__file__).resolve().parent
 FIELDS = [
@@ -28,6 +29,7 @@ FIELDS = [
     "read_latency_p50_ms", "read_latency_p95_ms", "read_latency_p99_ms",
     "error", "raw_file",
 ]
+FIELDS += SUMMARY_FIELDS
 
 
 def build_plan(cfg):
@@ -99,7 +101,7 @@ def main():
     output.mkdir(parents=True)
     (output / "config.yaml").write_text(yaml.safe_dump(cfg))
     (output / "plan.json").write_text(json.dumps(plan, indent=2) + "\n")
-    paths = [ROOT / "experiment.py", ROOT / "concurrent_sqlite.py", ROOT / "storage.py", ROOT / "pilot_workloads.py", ROOT / "read_phase.py"]
+    paths = [ROOT / "experiment.py", ROOT / "concurrent_sqlite.py", ROOT / "storage.py", ROOT / "pilot_workloads.py", ROOT / "read_phase.py", ROOT / "process_metrics.py"]
     paths += sorted((ROOT / "src").rglob("*.py"))
     hashes = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
     (output / "source_hashes.json").write_text(json.dumps(hashes, indent=2) + "\n")
