@@ -1,0 +1,18 @@
+batch_size: 1000
+clients:
+- 1
+- 16
+- 64
+database: sqlite
+query_window: 100
+read_queries: 64000
+records: 1000000
+repetitions: 5
+runtime: native
+seed: 20260814
+storage:
+- lustre
+- tmpfs
+timeout: 300
+warmup_repetitions: 1
+workload: metadata
