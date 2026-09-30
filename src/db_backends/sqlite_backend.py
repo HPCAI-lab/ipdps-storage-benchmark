@@ -135,3 +135,28 @@ class SQLiteBackend(DatabaseBackend):
             (start, end),
         )
         return cursor.fetchall()
+
+    def initialize_scientific_metadata_schema(self):
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS scientific_metadata (
+                record_id INTEGER PRIMARY KEY,
+                timestep INTEGER NOT NULL,
+                variable TEXT NOT NULL,
+                location TEXT NOT NULL,
+                value REAL NOT NULL
+            )
+        """)
+        self.conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_scientific_metadata_lookup
+            ON scientific_metadata(variable, timestep)
+        """)
+        self.conn.commit()
+
+    def insert_scientific_metadata_batch(self, records):
+        self.conn.executemany(
+            "INSERT INTO scientific_metadata "
+            "(record_id, timestep, variable, location, value) "
+            "VALUES (?, ?, ?, ?, ?)",
+            records,
+        )
+        self.conn.commit()

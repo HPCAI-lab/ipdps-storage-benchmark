@@ -21,6 +21,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from db_backends.sqlite_backend import SQLiteBackend
 from workloads.telemetry_workload import TelemetryWorkload
 from storage import StorageManager
+from pilot_workloads import build_workload
 
 
 def worker(worker_id, cfg, db_path, start_event, messages):
@@ -30,9 +31,9 @@ def worker(worker_id, cfg, db_path, start_event, messages):
         backend.connect()
         backend.conn.execute("PRAGMA busy_timeout=60000")
 
-        generator = TelemetryWorkload(
-            backend, batch_size=cfg["batch_size"],
-            interval_ms=100, seed=cfg["seed"],
+        generator = build_workload(
+            cfg.get("workload", "telemetry"), backend,
+            cfg["batch_size"], cfg["seed"],
         )
         base_ts = datetime(2024, 1, 1, tzinfo=timezone.utc)
         committed = 0
@@ -48,12 +49,12 @@ def worker(worker_id, cfg, db_path, start_event, messages):
             last = min(first + cfg["batch_size"], cfg["records"])
 
             # The same batch has the same data at every client count.
-            records = generator._generate_batch(
+            records = generator.generate_batch(
                 first, last, base_ts,
                 random.Random(cfg["seed"] + batch_id),
             )
             started = time.perf_counter()
-            backend.insert_telemetry_batch(records)
+            generator.insert_batch(records)
             latencies.append((time.perf_counter() - started) * 1000)
             committed += len(records)
 
@@ -99,6 +100,8 @@ def run(cfg, result):
     try:
         backend.connect()
         backend.initialize_schema()
+        if cfg.get("workload", "telemetry") == "metadata":
+            backend.initialize_scientific_metadata_schema()
         result["journal_mode"] = backend.journal_mode
         result["synchronous"] = backend.synchronous
     finally:
@@ -131,7 +134,23 @@ def run(cfg, result):
                 )
             return message
 
+    workload_name = cfg.get("workload", "telemetry")
+    if workload_name == "metadata":
+        table, unique_key = "scientific_metadata", "record_id"
+    elif workload_name == "telemetry":
+        table, unique_key = "telemetry", "ts"
+    else:
+        raise ValueError(f"Unsupported workload: {workload_name}")
+    result["workload"] = workload_name
+    keeper = None
     try:
+        # Keep a connection active until the explicit final checkpoint.
+        keeper = sqlite3.connect(db_path, timeout=60)
+        keeper.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
+        result["wal_autocheckpoint_pages"] = keeper.execute(
+            "PRAGMA wal_autocheckpoint"
+        ).fetchone()[0]
+
         for worker_id in range(cfg["clients"]):
             process = ctx.Process(
                 target=worker,
@@ -165,18 +184,18 @@ def run(cfg, result):
             value for item in completed for value in item["latencies_ms"]
         )
 
-        # Validate independently against the requested workload.
-        with sqlite3.connect(db_path) as conn:
-            stored, unique_timestamps = conn.execute(
-                "SELECT COUNT(*), COUNT(DISTINCT ts) FROM telemetry"
-            ).fetchone()
-            check = conn.execute("PRAGMA quick_check").fetchall()
+        # Checkpoint before validation scans. Automatic checkpoints during
+        # worker commits remain included in transaction/workload timing.
+        checkpoint_started = time.perf_counter()
+        checkpoint = keeper.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+        checkpoint_finished = time.perf_counter()
+        checkpoint_s = checkpoint_finished - checkpoint_started
+        completion_s = checkpoint_finished - started
 
-            checkpoint_started = time.perf_counter()
-            checkpoint = conn.execute(
-                "PRAGMA wal_checkpoint(TRUNCATE)"
-            ).fetchone()
-            checkpoint_s = time.perf_counter() - checkpoint_started
+        stored, unique_timestamps = keeper.execute(
+            f"SELECT COUNT(*), COUNT(DISTINCT {unique_key}) FROM {table}"
+        ).fetchone()
+        check = keeper.execute("PRAGMA quick_check").fetchall()
 
         if committed != cfg["records"] or stored != cfg["records"]:
             raise RuntimeError(
@@ -199,12 +218,19 @@ def run(cfg, result):
             "transaction_latency_p50_ms": percentile(latencies, 50),
             "transaction_latency_p95_ms": percentile(latencies, 95),
             "transaction_latency_p99_ms": percentile(latencies, 99),
-            "post_validation_checkpoint_s": checkpoint_s,
+            "final_checkpoint_s": checkpoint_s,
+            "completion_wall_s": completion_s,
+            "completion_throughput_records_s": committed / completion_s,
+            "transaction_latency_samples_ms": latencies,
+            "checkpoint_policy": "automatic_during_commits_plus_final_truncate",
             "worker_committed_records": [
                 item["committed"]
                 for item in sorted(completed, key=lambda x: x["worker"])
             ],
         })
+
+        keeper.close()
+        keeper = None
 
         # Clean up only this successful trial's known database files.
         for suffix in ("", "-wal", "-shm"):
@@ -218,12 +244,15 @@ def run(cfg, result):
                 if process.is_alive():
                     process.kill()
                     process.join()
+        if keeper is not None:
+            keeper.close()
         messages.close()
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--storage", choices=["lustre", "tmpfs"], required=True)
+    parser.add_argument("--workload", choices=["metadata", "telemetry"], default="telemetry")
     parser.add_argument("--clients", type=int, default=1)
     parser.add_argument("--records", type=int, default=100000)
     parser.add_argument("--batch-size", type=int, default=1000)
@@ -257,7 +286,7 @@ def main():
     try:
         run(cfg, result)
     except Exception as exc:
-        result["error"] = repr(exc)
+        result.update(success=False, error=repr(exc))
     finally:
         result_path.write_text(json.dumps(result, indent=2) + "\n")
         print(json.dumps(result, indent=2))

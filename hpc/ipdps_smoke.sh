@@ -21,6 +21,6 @@ export PYTHONUNBUFFERED=1
 
 srun --nodes=1 --ntasks=1 --cpus-per-task=256 --cpu-bind=none \
     .venv/bin/python experiment.py \
-    --config configs/telemetry-smoke.yaml
+    --config "${1:-configs/telemetry-smoke.yaml}"
 
 echo "CONTROLLER_SMOKE_COMPLETE"

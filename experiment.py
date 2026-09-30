@@ -17,17 +17,20 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent
 FIELDS = [
-    "trial", "phase", "repetition", "storage", "clients", "records", "seed",
+    "trial", "phase", "repetition", "workload", "storage", "clients", "records", "seed",
     "batch_size", "success", "workload_wall_s", "throughput_records_s",
     "transaction_latency_mean_ms", "transaction_latency_p50_ms",
     "transaction_latency_p95_ms", "transaction_latency_p99_ms",
-    "committed_records", "stored_records", "transactions", "error", "raw_file",
+    "committed_records", "stored_records", "transactions",
+    "final_checkpoint_s", "completion_wall_s", "completion_throughput_records_s",
+    "error", "raw_file",
 ]
 
 
 def build_plan(cfg):
-    for key, supported in (("database", "sqlite"), ("runtime", "native"),
-                           ("workload", "telemetry")):
+    if cfg.get("workload") not in ("metadata", "telemetry"):
+        raise ValueError("workload must be metadata or telemetry")
+    for key, supported in (("database", "sqlite"), ("runtime", "native")):
         if cfg.get(key) != supported:
             raise ValueError(f"This controller currently requires {key}={supported}")
     for key in ("records", "batch_size", "repetitions", "timeout"):
@@ -86,7 +89,7 @@ def main():
     output.mkdir(parents=True)
     (output / "config.yaml").write_text(yaml.safe_dump(cfg))
     (output / "plan.json").write_text(json.dumps(plan, indent=2) + "\n")
-    paths = [ROOT / "experiment.py", ROOT / "concurrent_sqlite.py", ROOT / "storage.py"]
+    paths = [ROOT / "experiment.py", ROOT / "concurrent_sqlite.py", ROOT / "storage.py", ROOT / "pilot_workloads.py"]
     paths += sorted((ROOT / "src").rglob("*.py"))
     hashes = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
     (output / "source_hashes.json").write_text(json.dumps(hashes, indent=2) + "\n")
@@ -98,11 +101,11 @@ def main():
         stream.flush()
         os.fsync(stream.fileno())
         for trial, item in enumerate(plan, 1):
-            trial_cfg = {k: cfg[k] for k in ("records", "batch_size", "timeout")}
+            trial_cfg = {k: cfg[k] for k in ("records", "batch_size", "timeout", "workload")}
             trial_cfg.update({k: item[k] for k in ("storage", "clients", "seed")})
             result = dict(config=trial_cfg, success=False, trial=trial,
                           phase=item["phase"], repetition=item["repetition"],
-                          database="sqlite", runtime="native", workload="telemetry",
+                          database="sqlite", runtime="native", workload=cfg["workload"],
                           hostname=socket.gethostname(), slurm_job_id=os.environ["SLURM_JOB_ID"],
                           python_version=platform.python_version(), sqlite_version=sqlite3.sqlite_version,
                           available_cpus=sorted(os.sched_getaffinity(0)),

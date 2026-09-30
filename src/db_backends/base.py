@@ -51,3 +51,13 @@ class DatabaseBackend(ABC):
     def get_backend_name(self) -> str:
         """Human-readable name for reporting (e.g. 'sqlite', 'mongodb')."""
         ...
+
+    @abstractmethod
+    def initialize_scientific_metadata_schema(self):
+        """Create the scientific metadata table and indexes."""
+        ...
+
+    @abstractmethod
+    def insert_scientific_metadata_batch(self, records):
+        """Insert and commit one batch of scientific metadata records."""
+        ...
