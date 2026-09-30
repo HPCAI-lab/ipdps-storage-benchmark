@@ -6,15 +6,13 @@ import time
 from datetime import datetime, timedelta, timezone
 
 from process_metrics import process_snapshot, process_delta, summarize_resources
-from db_backends.sqlite_backend import SQLiteBackend
+from backend_factory import connect_backend
 
 
 def read_worker(worker_id, cfg, db_path, start_event, messages):
     backend = None
     try:
-        backend = SQLiteBackend(db_path, "WAL", "NORMAL")
-        backend.connect()
-        backend.conn.execute("PRAGMA query_only=ON")
+        backend = connect_backend(cfg, db_path, read_only=True)
         base = datetime(2024, 1, 1, tzinfo=timezone.utc)
         latencies = []
         messages.put({"kind": "ready", "worker": worker_id})
@@ -42,7 +40,7 @@ def read_worker(worker_id, cfg, db_path, start_event, messages):
                 valid = [row[0] for row in rows] == list(range(first, last))
             else:
                 valid = all(
-                    datetime.fromisoformat(row[0])
+                    (row[0] if isinstance(row[0], datetime) else datetime.fromisoformat(row[0]))
                     == base + timedelta(milliseconds=(first + i) * 100)
                     for i, row in enumerate(rows)
                 )

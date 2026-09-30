@@ -1,0 +1,20 @@
+database: postgresql
+runtime: native
+server_runtime: shifter
+server_image_id: e4842c8a99ca99339e1693e6fe5fe62c7becb31991f066f989047dfb2fbf47af
+workload: telemetry
+storage:
+- lustre
+- tmpfs
+clients:
+- 1
+- 16
+- 64
+records: 128000
+batch_size: 1000
+read_queries: 128
+query_window: 100
+repetitions: 1
+warmup_repetitions: 0
+seed: 20260814
+timeout: 300

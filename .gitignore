@@ -11,3 +11,4 @@ results/
 *.sqlite
 *.sqlite3
 *.out
+.venv-postgres/

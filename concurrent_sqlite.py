@@ -24,14 +24,13 @@ from process_metrics import process_snapshot, process_delta, summarize_resources
 from storage import StorageManager
 from read_phase import run_read_phase
 from pilot_workloads import build_workload
+from backend_factory import connect_backend
 
 
 def worker(worker_id, cfg, db_path, start_event, messages):
     backend = None
     try:
-        backend = SQLiteBackend(db_path, "WAL", "NORMAL")
-        backend.connect()
-        backend.conn.execute("PRAGMA busy_timeout=60000")
+        backend = connect_backend(cfg, db_path)
 
         generator = build_workload(
             cfg.get("workload", "telemetry"), backend,

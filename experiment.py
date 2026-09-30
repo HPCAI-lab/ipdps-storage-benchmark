@@ -31,13 +31,25 @@ FIELDS = [
 ]
 FIELDS += SUMMARY_FIELDS
 FIELDS += ["database", "runtime", "python_version", "sqlite_version", "shifter_image_id"]
+FIELDS += ["client_runtime", "server_runtime", "server_image_id", "postgresql_version",
+           "driver_version", "libpq_version", "worker_metrics_scope", "server_resource_metrics_status"]
 
 
 def build_plan(cfg):
     if cfg.get("workload") not in ("metadata", "telemetry"):
         raise ValueError("workload must be metadata or telemetry")
-    if cfg.get("database") != "sqlite":
-        raise ValueError("This controller currently requires database=sqlite")
+    if cfg.get("database") not in ("sqlite", "postgresql"):
+        raise ValueError("database must be sqlite or postgresql")
+    if cfg["database"] == "postgresql":
+        if cfg.get("runtime") != "native" or cfg.get("server_runtime") != "shifter":
+            raise ValueError("Initial PostgreSQL integration requires native clients and a Shifter server")
+        image_id = cfg.get("server_image_id", "")
+        if not isinstance(image_id, str) or len(image_id) != 64 or any(
+            c not in "0123456789abcdef" for c in image_id
+        ):
+            raise ValueError("PostgreSQL requires a pinned server_image_id")
+        if any(type(c) is not int or c < 1 or c > 64 for c in cfg["clients"]):
+            raise ValueError("Initial PostgreSQL pilot supports 1 to 64 clients")
     if cfg.get("runtime") not in ("native", "shifter"):
         raise ValueError("runtime must be native or shifter")
     if cfg["runtime"] == "shifter":
@@ -118,12 +130,15 @@ def main():
 
     image_id = verify_runtime(cfg)
     from concurrent_sqlite import run
+    if cfg["database"] == "postgresql":
+        from concurrent_postgres import run as run_postgres
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     output = Path(args.output_root).resolve() / f"{stamp}-{uuid.uuid4().hex[:8]}"
     output.mkdir(parents=True)
     (output / "config.yaml").write_text(yaml.safe_dump(cfg))
     (output / "plan.json").write_text(json.dumps(plan, indent=2) + "\n")
     paths = [ROOT / "experiment.py", ROOT / "concurrent_sqlite.py", ROOT / "storage.py", ROOT / "pilot_workloads.py", ROOT / "read_phase.py", ROOT / "process_metrics.py"]
+    paths += [ROOT / name for name in ("backend_factory.py", "pg_server.py", "concurrent_postgres.py")]
     paths += sorted((ROOT / "src").rglob("*.py"))
     paths += sorted((ROOT / "hpc").glob("*.sh"))
     hashes = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
@@ -138,16 +153,23 @@ def main():
         for trial, item in enumerate(plan, 1):
             trial_cfg = {k: cfg[k] for k in ("records", "batch_size", "timeout", "workload", "read_queries", "query_window")}
             trial_cfg.update({k: item[k] for k in ("storage", "clients", "seed")})
+            if cfg["database"] == "postgresql":
+                trial_cfg.update({k: cfg[k] for k in ("database", "server_runtime", "server_image_id")})
             result = dict(config=trial_cfg, success=False, trial=trial,
                           phase=item["phase"], repetition=item["repetition"],
-                          database="sqlite", runtime=cfg["runtime"], workload=cfg["workload"],
+                          database=cfg["database"], runtime=cfg["runtime"], workload=cfg["workload"],
+                          client_runtime=cfg["runtime"],
+                          server_runtime=cfg.get("server_runtime", "embedded"),
                           shifter_image_id=image_id,
                           hostname=socket.gethostname(), slurm_job_id=os.environ["SLURM_JOB_ID"],
-                          python_version=platform.python_version(), sqlite_version=sqlite3.sqlite_version,
+                          python_version=platform.python_version(), sqlite_version=(sqlite3.sqlite_version if cfg["database"] == "sqlite" else ""),
                           available_cpus=sorted(os.sched_getaffinity(0)),
                           timestamp_utc=datetime.now(timezone.utc).isoformat())
             try:
-                run(trial_cfg, result)
+                if cfg["database"] == "postgresql":
+                    run_postgres(trial_cfg, result, output / f"trial-{trial:04d}-postgres.log")
+                else:
+                    run(trial_cfg, result)
             except Exception as exc:
                 result.update(success=False, error=repr(exc))
             raw_name = f"trial-{trial:04d}.json"
