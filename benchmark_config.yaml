@@ -1,0 +1,35 @@
+# Benchmark configuration
+# Activate with: BENCHMARK_MODE=1 python src/app.py
+
+# Which workloads to run (metadata | telemetry)
+workloads:
+  - metadata
+  - telemetry
+
+benchmark:
+  repetitions: 5
+  warmup_repetitions: 1
+  random_seed: 20260814
+  cleanup_databases: true
+
+# Input / output directories (overridable via DATA_DIR / OUTPUT_DIR env vars)
+data_dir: ./data
+output_dir: ./data/output
+
+# SQLite backend settings
+sqlite:
+  path: ./data/benchmark.db
+  journal_mode: WAL
+  synchronous: NORMAL
+
+metadata:
+  batch_size: 1000
+
+# Telemetry workload parameters
+telemetry:
+  num_points:
+    - 100000
+    - 1000000
+    - 5000000
+  interval_ms: 100
+  batch_size: 1000

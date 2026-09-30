@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.venv*/
+.env
+.env.*
+data/
+results/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.out

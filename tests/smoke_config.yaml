@@ -1,0 +1,20 @@
+workloads:
+  - metadata
+  - telemetry
+benchmark:
+  repetitions: 2
+  warmup_repetitions: 1
+  random_seed: 20260814
+  cleanup_databases: true
+sqlite:
+  path: ./data/benchmark.db
+  journal_mode: WAL
+  synchronous: NORMAL
+metadata:
+  batch_size: 2
+telemetry:
+  num_points:
+    - 100
+    - 1000
+  interval_ms: 100
+  batch_size: 100

@@ -1,0 +1,26 @@
+version: '3.8'
+
+# Benchmark compose — SQLite backend with bind-volume storage.
+# Run with:  docker compose -f docker/docker-compose.benchmark.yml up --build
+
+services:
+  benchmark:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: benchmark-app
+    volumes:
+      - ../data:/data:rw
+      - ../data/input:/input:ro
+      - ../data/output:/results:rw
+    environment:
+      - BENCHMARK_MODE=1
+      - BENCHMARK_CONFIG=/app/benchmark_config.yaml
+      - DB_PATH=/data/benchmark.db
+      - DATA_DIR=/data
+      - INPUT_DIR=/input
+      - OUTPUT_DIR=/results
+      - STORAGE_BACKEND=bind
+      - RUNTIME_LABEL=docker
+    command: python3 /app/app.py
+    restart: "no"
