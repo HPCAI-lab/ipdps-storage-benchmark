@@ -62,7 +62,7 @@ def write_phase(cfg, target):
 
 def run(cfg, result, log_path):
     storage = StorageManager({'lustre': '/pscratch/sd/m/makhatri', 'tmpfs': '/tmp'}).prepare(cfg['storage'])
-    result.update(storage_info=storage, client_runtime='native', server_runtime='shifter',
+    result.update(storage_info=storage, server_profiling=cfg.get('server_profiling', False), client_runtime='native', server_runtime='shifter',
                   server_image_id=cfg['server_image_id'], server_log=Path(log_path).name,
                   driver_version=psycopg.__version__, libpq_version=pq.version(),
                   worker_metrics_scope='client_processes_only',
@@ -120,6 +120,9 @@ def run(cfg, result, log_path):
             if backend is not None:
                 backend.close()
         finally:
-            server.stop()
+            try:
+                server.stop()
+            finally:
+                result.update(server.resource_metrics())
     server.remove_successful_trial()
     result['success'] = True

@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import time
 import psycopg
+from server_metrics import ServerProfiler
 
 SERVER_SCRIPT = '''set -eu
 test "$SHIFTER_IMAGE" = "$2"
@@ -27,6 +28,7 @@ class PostgresServer:
         self.log_path = Path(log_path)
         self.log = None
         self.process = None
+        self.profiler = ServerProfiler(log_path) if cfg.get('server_profiling', False) else None
         self.command = ['shifter', '--image=id:' + cfg['server_image_id'],
                         '--volume=' + storage['path'] + ':/pgwork',
                         '--volume=' + self.socket_dir + ':/pgsocket']
@@ -37,10 +39,14 @@ class PostgresServer:
 
     def start(self):
         self.log = self.log_path.open('w')
+        launch = self.command + ['/bin/bash', '-c', SERVER_SCRIPT, 'pg-server',
+                            self.storage['label'], self.cfg['server_image_id'], getpass.getuser()]
+        if self.profiler is not None:
+            launch = self.profiler.wrap(launch)
         self.process = subprocess.Popen(
-            self.command + ['/bin/bash', '-c', SERVER_SCRIPT, 'pg-server',
-                            self.storage['label'], self.cfg['server_image_id'], getpass.getuser()],
-            stdout=self.log, stderr=subprocess.STDOUT, start_new_session=True)
+            launch, stdout=self.log, stderr=subprocess.STDOUT, start_new_session=True)
+        if self.profiler is not None:
+            self.profiler.start(self.process.pid)
         deadline = time.monotonic() + min(120, self.cfg['timeout'])
         last_error = None
         while time.monotonic() < deadline:
@@ -79,6 +85,12 @@ class PostgresServer:
                     self.process.wait(timeout=10)
             if self.log is not None:
                 self.log.close()
+
+    def resource_metrics(self):
+        if self.profiler is None:
+            return {}
+        self.profiler.stop()
+        return self.profiler.result()
 
     def remove_successful_trial(self):
         if self.process is None or self.process.poll() is None:

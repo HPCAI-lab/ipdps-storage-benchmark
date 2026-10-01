@@ -15,6 +15,7 @@ from pathlib import Path
 
 import yaml
 from process_metrics import SUMMARY_FIELDS
+from server_metrics import SERVER_FIELDS
 
 ROOT = Path(__file__).resolve().parent
 FIELDS = [
@@ -30,12 +31,17 @@ FIELDS = [
     "error", "raw_file",
 ]
 FIELDS += SUMMARY_FIELDS
+FIELDS += SERVER_FIELDS
 FIELDS += ["database", "runtime", "python_version", "sqlite_version", "shifter_image_id"]
 FIELDS += ["client_runtime", "server_runtime", "server_image_id", "postgresql_version",
            "driver_version", "libpq_version", "worker_metrics_scope", "server_resource_metrics_status"]
 
 
 def build_plan(cfg):
+    if type(cfg.get("server_profiling", False)) is not bool:
+        raise ValueError("server_profiling must be a boolean")
+    if cfg.get("server_profiling", False) and cfg.get("database") != "postgresql":
+        raise ValueError("Server profiling currently requires PostgreSQL")
     if cfg.get("workload") not in ("metadata", "telemetry"):
         raise ValueError("workload must be metadata or telemetry")
     if cfg.get("database") not in ("sqlite", "postgresql"):
@@ -139,6 +145,7 @@ def main():
     (output / "plan.json").write_text(json.dumps(plan, indent=2) + "\n")
     paths = [ROOT / "experiment.py", ROOT / "concurrent_sqlite.py", ROOT / "storage.py", ROOT / "pilot_workloads.py", ROOT / "read_phase.py", ROOT / "process_metrics.py"]
     paths += [ROOT / name for name in ("backend_factory.py", "pg_server.py", "concurrent_postgres.py")]
+    paths += [ROOT / "server_metrics.py"]
     paths += sorted((ROOT / "src").rglob("*.py"))
     paths += sorted((ROOT / "hpc").glob("*.sh"))
     hashes = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
@@ -153,6 +160,8 @@ def main():
         for trial, item in enumerate(plan, 1):
             trial_cfg = {k: cfg[k] for k in ("records", "batch_size", "timeout", "workload", "read_queries", "query_window")}
             trial_cfg.update({k: item[k] for k in ("storage", "clients", "seed")})
+            if cfg["database"] == "postgresql":
+                trial_cfg["server_profiling"] = cfg.get("server_profiling", False)
             if cfg["database"] == "postgresql":
                 trial_cfg.update({k: cfg[k] for k in ("database", "server_runtime", "server_image_id")})
             result = dict(config=trial_cfg, success=False, trial=trial,
