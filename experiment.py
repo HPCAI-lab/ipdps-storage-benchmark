@@ -32,12 +32,13 @@ FIELDS = [
 ]
 FIELDS += SUMMARY_FIELDS
 FIELDS += SERVER_FIELDS
+FIELDS += ["pair_id", "profiling_comparison"]
 FIELDS += ["database", "runtime", "python_version", "sqlite_version", "shifter_image_id"]
 FIELDS += ["client_runtime", "server_runtime", "server_image_id", "postgresql_version",
            "driver_version", "libpq_version", "worker_metrics_scope", "server_resource_metrics_status"]
 
 
-def build_plan(cfg):
+def _build_single_mode_plan(cfg):
     if type(cfg.get("server_profiling", False)) is not bool:
         raise ValueError("server_profiling must be a boolean")
     if cfg.get("server_profiling", False) and cfg.get("database") != "postgresql":
@@ -116,6 +117,32 @@ def verify_runtime(cfg):
     return ""
 
 
+
+def build_plan(cfg):
+    compare = cfg.get("profiling_comparison", False)
+    if type(compare) is not bool:
+        raise ValueError("profiling_comparison must be a boolean")
+    if compare and cfg.get("database") != "postgresql":
+        raise ValueError("Profiling comparison requires PostgreSQL")
+
+    base = _build_single_mode_plan(cfg)
+    if not compare:
+        return base
+
+    conditions = list(itertools.product(cfg["storage"], cfg["clients"]))
+    paired = []
+    for item in base:
+        index = conditions.index((item["storage"], item["clients"]))
+        first = bool((item["repetition"] + index) % 2)
+        pair_id = ":".join(str(v) for v in (
+            cfg["workload"], item["phase"], item["repetition"],
+            item["storage"], item["clients"]))
+        for enabled in (first, not first):
+            paired.append(dict(
+                item, server_profiling=enabled, pair_id=pair_id))
+    return paired
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
@@ -161,10 +188,12 @@ def main():
             trial_cfg = {k: cfg[k] for k in ("records", "batch_size", "timeout", "workload", "read_queries", "query_window")}
             trial_cfg.update({k: item[k] for k in ("storage", "clients", "seed")})
             if cfg["database"] == "postgresql":
-                trial_cfg["server_profiling"] = cfg.get("server_profiling", False)
+                trial_cfg["server_profiling"] = item.get("server_profiling", cfg.get("server_profiling", False))
             if cfg["database"] == "postgresql":
                 trial_cfg.update({k: cfg[k] for k in ("database", "server_runtime", "server_image_id")})
             result = dict(config=trial_cfg, success=False, trial=trial,
+                          pair_id=item.get("pair_id", ""),
+                          profiling_comparison=cfg.get("profiling_comparison", False),
                           phase=item["phase"], repetition=item["repetition"],
                           database=cfg["database"], runtime=cfg["runtime"], workload=cfg["workload"],
                           client_runtime=cfg["runtime"],
