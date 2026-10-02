@@ -1,0 +1,20 @@
+database: postgresql
+runtime: native
+workload: mixed
+storage:
+- lustre
+- tmpfs
+clients:
+- 1
+- 16
+- 64
+records: 1000000
+batch_size: 1000
+read_queries: 1024
+query_window: 100
+repetitions: 5
+warmup_repetitions: 1
+seed: 20261002
+timeout: 600
+server_runtime: shifter
+server_image_id: e4842c8a99ca99339e1693e6fe5fe62c7becb31991f066f989047dfb2fbf47af
