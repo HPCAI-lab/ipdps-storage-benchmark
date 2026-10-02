@@ -45,8 +45,8 @@ FIELDS += ["client_runtime", "server_runtime", "server_image_id", "postgresql_ve
 def _build_single_mode_plan(cfg):
     if type(cfg.get("server_profiling", False)) is not bool:
         raise ValueError("server_profiling must be a boolean")
-    if cfg.get("server_profiling", False) and cfg.get("database") != "postgresql":
-        raise ValueError("Server profiling currently requires PostgreSQL")
+    if cfg.get("server_profiling", False) and cfg.get("database") not in ("postgresql", "influxdb"):
+        raise ValueError("Server profiling requires PostgreSQL or InfluxDB")
     if cfg.get("workload") not in ("metadata", "telemetry"):
         raise ValueError("workload must be metadata or telemetry")
     if cfg.get("database") not in ("sqlite", "postgresql", "influxdb"):
@@ -202,7 +202,7 @@ def main():
         for trial, item in enumerate(plan, 1):
             trial_cfg = {k: cfg[k] for k in ("records", "batch_size", "timeout", "workload", "read_queries", "query_window")}
             trial_cfg.update({k: item[k] for k in ("storage", "clients", "seed")})
-            if cfg["database"] == "postgresql":
+            if cfg["database"] in ("postgresql", "influxdb"):
                 trial_cfg["server_profiling"] = item.get("server_profiling", cfg.get("server_profiling", False))
             if cfg["database"] in ("postgresql", "influxdb"):
                 trial_cfg.update({k: cfg[k] for k in ("database", "server_runtime", "server_image_id")})

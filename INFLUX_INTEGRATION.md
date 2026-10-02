@@ -1,9 +1,9 @@
 # InfluxDB concurrent pilot integration
 
-Status: local contract, worker-protocol simulation, configuration, and installer
-checks passed. Real Flux execution and the new integration still require the
-12-trial Perlmutter check. The earlier lifecycle-only check passed on Lustre and
-tmpfs in job 59187195; it does not validate this adapter.
+Status: lifecycle validation passed in job 59187195; all 12 concurrent
+integration trials passed in job 59187722. Repeated unprofiled pilots passed
+in jobs 59188702 and 59188703. Optional server profiling has local accounting
+and supervision tests; its real Shifter validation is a separate next step.
 
 ## Execution and scope
 
@@ -59,7 +59,7 @@ These checks do not claim a full bitwise audit of every generated payload.
 - Reads are warm after acknowledged writes and validation. They include HTTP,
   Flux processing, CSV parsing and Python row construction.
 - Existing CPU/memory/I/O worker fields describe client processes only.
-  Influx server resource profiling is not yet implemented.
+  Optional server lifecycle profiling is documented in INFLUX_RESOURCES.md.
 
 These settings do not make InfluxDB, SQLite WAL/NORMAL, and PostgreSQL durability
 policies equivalent. Treat initial results as deployment/workload comparisons;

@@ -1,0 +1,20 @@
+database: influxdb
+runtime: native
+server_runtime: shifter
+server_image_id: db0bdab1e5ad5ee899c127b8c13d9c986a3ced78cd9200dd80a1064bf1533b6e
+workload: metadata
+storage:
+- lustre
+- tmpfs
+clients:
+- 1
+- 64
+records: 1000000
+batch_size: 1000
+read_queries: 1024
+query_window: 100
+repetitions: 1
+warmup_repetitions: 0
+seed: 20260814
+timeout: 600
+server_profiling: true

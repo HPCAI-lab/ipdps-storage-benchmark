@@ -1,8 +1,11 @@
 """Optional server-launch lifecycle accounting, separate from client phases.
 
 Linux wait4 accounts for the launched command and waited-for descendants. The
-tree includes Shifter, initdb, PostgreSQL and its backends, through shutdown;
-it excludes Python clients and the separately launched pg_ctl stop command.
+PostgreSQL tree includes Shifter, initdb, PostgreSQL and its backends, through
+shutdown; it excludes Python clients and the separately launched pg_ctl stop
+command. InfluxDB accounting includes Shifter, the waiting shell supervisor,
+influxd, setup and shutdown; Python clients and the accounting supervisor are
+excluded from CPU/I/O accounting. Sampled PSS includes the accounting supervisor.
 Kernel block counters are not device bandwidth or logical SQL byte counts.
 PSS is sampled, non-atomic, and can miss peaks and short-lived processes.
 """
@@ -27,7 +30,8 @@ PREFIX = 'server_lifecycle_'
 SERVER_FIELDS = ['server_profiling'] + [PREFIX + key for key in TIME_KEYS] + [
     PREFIX + key for key in ('cpu_s', 'sampled_peak_pss_kib',
                             'memory_samples', 'complete_memory_samples',
-                            'sampler_wall_s', 'sampled_max_postgres_processes')]
+                            'sampler_wall_s', 'sampled_max_postgres_processes',
+                            'sampled_max_influxd_processes')]
 
 
 def identity(pid):
@@ -75,7 +79,7 @@ def children_of(pid, cache):
 def memory_sample(root_pid, root_identity):
     """Read only the launched tree; reject PID reuse and incomplete scans."""
     pending, visited, identities, cache = [root_pid], set(), [], {}
-    pss, errors, live, postgres_processes = 0, [], 0, 0
+    pss, errors, live, postgres_processes, influxd_processes = 0, [], 0, 0, 0
     while pending:
         pid = pending.pop()
         if pid in visited:
@@ -87,8 +91,11 @@ def memory_sample(root_pid, root_identity):
                 raise RuntimeError('Profiler root PID was reused')
             child_ids = children_of(pid, cache)
             if state != 'Z':
-                if Path(f'/proc/{pid}/comm').read_text().strip() == 'postgres':
+                name = Path(f'/proc/{pid}/comm').read_text().strip()
+                if name == 'postgres':
                     postgres_processes += 1
+                elif name == 'influxd':
+                    influxd_processes += 1
                 fields = Path(f'/proc/{pid}/smaps_rollup').read_text().splitlines()
                 value = next(int(line.split()[1]) for line in fields
                              if line.startswith('Pss:'))
@@ -112,13 +119,16 @@ def memory_sample(root_pid, root_identity):
             errors.append(f'{pid}: {type(exc).__name__}: {exc}')
     return dict(pss_kib=pss if not errors and live else None,
                 live_processes=live, discovered_processes=len(visited),
-                postgres_processes=postgres_processes,
+                postgres_processes=postgres_processes, influxd_processes=influxd_processes,
                 discovery='proc_stat_snapshot' if 'parents' in cache else 'children_files',
                 complete=not errors and live > 0, errors=errors[:8])
 
 
 class ServerProfiler:
-    def __init__(self, log_path, interval_s=0.2):
+    def __init__(self, log_path, interval_s=0.2, server_name="postgres"):
+        if server_name not in ("postgres", "influxd"):
+            raise ValueError("Unsupported server process name")
+        self.server_name = server_name
         self.time_path = Path(str(log_path) + '.rusage.json')
         self.memory_path = Path(str(log_path) + '.memory.jsonl')
         self.interval_s = interval_s
@@ -174,14 +184,23 @@ class ServerProfiler:
             server_memory_file=self.memory_path.name,
             server_memory_sampling_interval_s=self.interval_s,
             server_sampler_error=self.error)
+        if self.server_name == 'influxd':
+            result['server_resource_scope'] = (
+                'wait4_launch_lifecycle_including_shifter_shell_supervisor_influxd_setup_shutdown; '
+                'excludes_python_clients_and_profiler_supervisor')
+            result['server_io_scope'] = (
+                'kernel_rusage_block_counters; not_logical_database_bytes_or_device_bandwidth')
+        result['server_profiled_process_name'] = self.server_name
         complete = [s for s in self.samples if s['complete']]
-        postgres_samples = [s for s in complete if s['postgres_processes'] > 0]
+        server_samples = [s for s in complete if s[self.server_name + '_processes'] > 0]
         result.update({PREFIX + 'sampled_peak_pss_kib':
                            max((s['pss_kib'] for s in complete), default=None),
                        PREFIX + 'memory_samples': len(self.samples),
                        PREFIX + 'complete_memory_samples': len(complete),
                        PREFIX + 'sampled_max_postgres_processes': max(
                            (s['postgres_processes'] for s in complete), default=0),
+                       PREFIX + 'sampled_max_influxd_processes': max(
+                           (s['influxd_processes'] for s in complete), default=0),
                        PREFIX + 'sampler_wall_s': sum(s['scan_wall_s'] for s in self.samples)})
         try:
             values = json.loads(self.time_path.read_text())
@@ -193,7 +212,7 @@ class ServerProfiler:
             result.update({PREFIX + k: v for k,v in values.items()})
             result[PREFIX + 'cpu_s'] = values['user_cpu_s'] + values['system_cpu_s']
             result['server_resource_metrics_status'] = (
-                'lifecycle_collected' if postgres_samples and not self.error
+                'lifecycle_collected' if server_samples and not self.error
                 else 'lifecycle_cpu_io_collected_memory_incomplete')
         except (OSError, ValueError, StopIteration) as exc:
             result['server_accounting_error'] = repr(exc)

@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 
 from db_backends.influx_backend import InfluxBackend
+from server_metrics import ServerProfiler
 
 IMAGE = 'db0bdab1e5ad5ee899c127b8c13d9c986a3ced78cd9200dd80a1064bf1533b6e'
 SUPERVISOR = r'''
@@ -54,6 +55,8 @@ class InfluxServer:
         self.log_path = Path(log_path)
         self.process = self.log = None
         self.shutdown = {}
+        self.profiler = (ServerProfiler(log_path, server_name="influxd")
+                         if cfg.get("server_profiling", False) else None)
         with socket.socket() as probe:
             probe.bind(('127.0.0.1', 0))
             port = probe.getsockname()[1]
@@ -69,8 +72,12 @@ class InfluxServer:
                    '--volume=' + str(self.control) + ':/influxcontrol',
                    '/bin/sh', '-c', SUPERVISOR, 'influx-supervisor', IMAGE,
                    f'127.0.0.1:{self.connection["port"]}', self.storage['filesystem']]
+        if self.profiler is not None:
+            command = self.profiler.wrap(command)
         self.process = subprocess.Popen(command, stdout=self.log,
                                         stderr=subprocess.STDOUT, start_new_session=True)
+        if self.profiler is not None:
+            self.profiler.start(self.process.pid)
         deadline = time.monotonic() + 90
         while time.monotonic() < deadline:
             if self.process.poll() is not None:
@@ -133,6 +140,12 @@ class InfluxServer:
             if self.log is not None:
                 self.log.close()
                 self.log = None
+
+    def resource_metrics(self):
+        if self.profiler is None:
+            return {}
+        self.profiler.stop()
+        return self.profiler.result()
 
     def remove_successful_trial(self):
         if self.shutdown.get('server_exit_code') != 0:

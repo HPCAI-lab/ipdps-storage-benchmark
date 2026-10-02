@@ -62,6 +62,7 @@ def write_phase(cfg, target):
 def run(cfg, result, log_path):
     storage = StorageManager({'lustre': os.environ['SCRATCH'], 'tmpfs': '/tmp'}).prepare(cfg['storage'])
     result.update(storage_info=storage, client_runtime='native', server_runtime='shifter',
+                  server_profiling=cfg.get('server_profiling', False),
                   server_image_id=cfg['server_image_id'], server_log=Path(log_path).name,
                   driver_version='python_stdlib_http.client',
                   worker_metrics_scope='client_processes_only',
@@ -115,5 +116,11 @@ def run(cfg, result, log_path):
                 server.stop()
             finally:
                 result.update(server.shutdown)
+                result.update(server.resource_metrics())
+    if cfg.get('server_profiling', False):
+        if (result.get('server_resource_metrics_status') != 'lifecycle_collected'
+                or result.get('server_lifecycle_exit_code') != 0
+                or result.get('server_lifecycle_sampled_max_influxd_processes', 0) < 1):
+            raise RuntimeError('InfluxDB profiling incomplete; inspect raw accounting and memory files')
     server.remove_successful_trial()
     result['success'] = True
