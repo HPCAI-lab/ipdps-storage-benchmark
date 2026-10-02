@@ -1,0 +1,18 @@
+database: sqlite
+runtime: native
+workload: mixed
+storage:
+- lustre
+- tmpfs
+clients:
+- 1
+- 16
+- 64
+records: 10000000
+batch_size: 1000
+read_queries: 1024
+query_window: 100
+repetitions: 5
+warmup_repetitions: 1
+seed: 20261002
+timeout: 1800

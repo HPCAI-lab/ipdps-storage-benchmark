@@ -1,0 +1,20 @@
+batch_size: 1000
+clients:
+- 1
+- 16
+- 64
+database: postgresql
+query_window: 100
+read_queries: 1024
+records: 100000
+repetitions: 5
+runtime: native
+seed: 20260814
+storage:
+- lustre
+- tmpfs
+timeout: 300
+warmup_repetitions: 1
+workload: metadata
+server_runtime: shifter
+server_image_id: e4842c8a99ca99339e1693e6fe5fe62c7becb31991f066f989047dfb2fbf47af
