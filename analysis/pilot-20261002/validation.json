@@ -1,0 +1,146 @@
+{
+  "status": "PASS",
+  "input_sha256": "5c228b21cdf83ed31c4231f5445f1b7d03869b1715221328b4f72dc476668313",
+  "runs": 8,
+  "recorded_allocations": 8,
+  "rows": 288,
+  "measured": 240,
+  "warmups": 48,
+  "conditions": 48,
+  "checks": [
+    "CSV/config/plan/metadata consistency",
+    "complete factorial coverage and unique repetition IDs",
+    "record and query counts reported in CSV",
+    "positive finite timings and rate identities",
+    "ordered latency percentiles",
+    "worker CPU sums",
+    "pinned image IDs",
+    "one node and job per run",
+    "equal metadata/telemetry source-hash manifests within each deployment"
+  ],
+  "limits": [
+    "Full raw trial JSONs and per-request latency samples were not included; counts are saved reported counts, not a fresh database reread.",
+    "Source-hash manifests were compared; underlying source file bytes are not in the input ZIP.",
+    "Profiling runs and their server-accounting files are not in this archive.",
+    "Confidence intervals describe within-allocation repetitions under t-model assumptions; not between-node or between-allocation uncertainty.",
+    "No outlier removal, no multiplicity-adjusted hypothesis tests, no global cross-engine ranking."
+  ],
+  "source_manifest_comparisons": [
+    {
+      "comparison": "sqlite-native vs sqlite-shifter",
+      "equal_common_files": [
+        "concurrent_sqlite.py",
+        "pilot_workloads.py",
+        "process_metrics.py",
+        "read_phase.py",
+        "src/XYZProcessor.py",
+        "src/app.py",
+        "src/benchmark_runner.py",
+        "src/db_backends/__init__.py",
+        "src/db_backends/base.py",
+        "src/db_backends/sqlite_backend.py",
+        "src/workloads/__init__.py",
+        "src/workloads/metadata_workload.py",
+        "src/workloads/telemetry_workload.py",
+        "storage.py"
+      ],
+      "different_common_files": [
+        "experiment.py"
+      ],
+      "only_in_later": [
+        "hpc/capture_environment.sh",
+        "hpc/ipdps_shifter.sh",
+        "hpc/ipdps_smoke.sh",
+        "hpc/perlmutter_job.sh",
+        "hpc/run_perlmutter_matrix.sh",
+        "hpc/run_shifter.sh"
+      ]
+    },
+    {
+      "comparison": "sqlite-native vs postgres",
+      "equal_common_files": [
+        "pilot_workloads.py",
+        "process_metrics.py",
+        "src/XYZProcessor.py",
+        "src/app.py",
+        "src/benchmark_runner.py",
+        "src/db_backends/__init__.py",
+        "src/db_backends/base.py",
+        "src/db_backends/sqlite_backend.py",
+        "src/workloads/__init__.py",
+        "src/workloads/metadata_workload.py",
+        "src/workloads/telemetry_workload.py",
+        "storage.py"
+      ],
+      "different_common_files": [
+        "concurrent_sqlite.py",
+        "experiment.py",
+        "read_phase.py"
+      ],
+      "only_in_later": [
+        "backend_factory.py",
+        "concurrent_postgres.py",
+        "hpc/capture_environment.sh",
+        "hpc/ipdps_postgres.sh",
+        "hpc/ipdps_shifter.sh",
+        "hpc/ipdps_smoke.sh",
+        "hpc/perlmutter_job.sh",
+        "hpc/pg_check_inner.sh",
+        "hpc/pg_lifecycle.sh",
+        "hpc/run_perlmutter_matrix.sh",
+        "hpc/run_shifter.sh",
+        "pg_server.py",
+        "src/db_backends/postgres_backend.py"
+      ]
+    },
+    {
+      "comparison": "sqlite-native vs influx",
+      "equal_common_files": [
+        "pilot_workloads.py",
+        "process_metrics.py",
+        "src/XYZProcessor.py",
+        "src/app.py",
+        "src/benchmark_runner.py",
+        "src/db_backends/__init__.py",
+        "src/db_backends/base.py",
+        "src/db_backends/sqlite_backend.py",
+        "src/workloads/__init__.py",
+        "src/workloads/metadata_workload.py",
+        "src/workloads/telemetry_workload.py",
+        "storage.py"
+      ],
+      "different_common_files": [
+        "concurrent_sqlite.py",
+        "experiment.py",
+        "read_phase.py"
+      ],
+      "only_in_later": [
+        "backend_factory.py",
+        "concurrent_influx.py",
+        "concurrent_postgres.py",
+        "hpc/capture_environment.sh",
+        "hpc/ipdps_influx.sh",
+        "hpc/ipdps_influx_check.sh",
+        "hpc/ipdps_postgres.sh",
+        "hpc/ipdps_shifter.sh",
+        "hpc/ipdps_smoke.sh",
+        "hpc/perlmutter_job.sh",
+        "hpc/pg_check_inner.sh",
+        "hpc/pg_lifecycle.sh",
+        "hpc/run_perlmutter_matrix.sh",
+        "hpc/run_shifter.sh",
+        "influx_server.py",
+        "pg_server.py",
+        "server_metrics.py",
+        "src/db_backends/influx_backend.py",
+        "src/db_backends/postgres_backend.py"
+      ]
+    }
+  ],
+  "dependencies": {
+    "python": "3.12.14",
+    "numpy": "2.3.5",
+    "scipy": "1.17.0",
+    "PyYAML": "6.0.3"
+  }
+}

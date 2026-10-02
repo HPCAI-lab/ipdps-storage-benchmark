@@ -1,0 +1,9 @@
+run_label,run_directory,deployment,workload,job_id,hostname,python_version,engine_version,read_queries,measured_trials,warmup_trials,source_file_hashes
+sqlite-native-metadata,20260930T073514Z-1cf71cab,sqlite-native,metadata,59115833,nid005486,3.11.7,3.44.2,64000,30,6,15
+sqlite-native-telemetry,20260930T073512Z-dfcc55d8,sqlite-native,telemetry,59115834,nid005772,3.11.7,3.44.2,64000,30,6,15
+sqlite-shifter-metadata,20260930T195743Z-b1e24bac,sqlite-shifter,metadata,59132736,nid005384,3.11.15,3.46.1,64000,30,6,21
+sqlite-shifter-telemetry,20260930T195743Z-01b1b069,sqlite-shifter,telemetry,59132737,nid005415,3.11.15,3.46.1,64000,30,6,21
+postgres-metadata,20260930T220312Z-97eed23f,postgres,metadata,59136228,nid004148,3.11.7,16.12 (Debian 16.12-1.pgdg13+1),64000,30,6,28
+postgres-telemetry,20260930T220313Z-9a86d46a,postgres,telemetry,59136230,nid004158,3.11.7,16.12 (Debian 16.12-1.pgdg13+1),64000,30,6,28
+influx-metadata,20261002T060120Z-6d8d2b02,influx,metadata,59188702,nid004584,3.11.7,2.9.1,1024,30,6,34
+influx-telemetry,20261002T060117Z-db0b5b66,influx,telemetry,59188703,nid004722,3.11.7,2.9.1,1024,30,6,34
