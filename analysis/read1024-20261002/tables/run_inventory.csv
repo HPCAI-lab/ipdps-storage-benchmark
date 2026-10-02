@@ -1,0 +1,15 @@
+dataset,deployment,workload,job_id,hostname,engine_version,python_version,read_queries,measured,warmups,run_directory,run_label,measured_trials,warmup_trials,source_file_hashes
+read1024,sqlite-native,metadata,59220317,nid005765,3.44.2,3.11.7,1024,30,6,runs/20261002T191358Z-c71f8af9,,,,
+read1024,sqlite-shifter,metadata,59220317,nid005765,3.46.1,3.11.15,1024,30,6,runs/20261002T191719Z-a4afb9d5,,,,
+read1024,postgres,metadata,59220317,nid005765,16.12 (Debian 16.12-1.pgdg13+1),3.11.7,1024,30,6,runs/20261002T192035Z-99c36a78,,,,
+read1024,sqlite-native,telemetry,59220318,nid006712,3.44.2,3.11.7,1024,30,6,runs/20261002T191358Z-38b4d399,,,,
+read1024,sqlite-shifter,telemetry,59220318,nid006712,3.46.1,3.11.15,1024,30,6,runs/20261002T191848Z-8721f09e,,,,
+read1024,postgres,telemetry,59220318,nid006712,16.12 (Debian 16.12-1.pgdg13+1),3.11.7,1024,30,6,runs/20261002T192352Z-db4495ae,,,,
+baseline,sqlite-native,metadata,59115833,nid005486,3.44.2,3.11.7,64000,30,6,20260930T073514Z-1cf71cab,sqlite-native-metadata,30,6,15
+baseline,sqlite-native,telemetry,59115834,nid005772,3.44.2,3.11.7,64000,30,6,20260930T073512Z-dfcc55d8,sqlite-native-telemetry,30,6,15
+baseline,sqlite-shifter,metadata,59132736,nid005384,3.46.1,3.11.15,64000,30,6,20260930T195743Z-b1e24bac,sqlite-shifter-metadata,30,6,21
+baseline,sqlite-shifter,telemetry,59132737,nid005415,3.46.1,3.11.15,64000,30,6,20260930T195743Z-01b1b069,sqlite-shifter-telemetry,30,6,21
+baseline,postgres,metadata,59136228,nid004148,16.12 (Debian 16.12-1.pgdg13+1),3.11.7,64000,30,6,20260930T220312Z-97eed23f,postgres-metadata,30,6,28
+baseline,postgres,telemetry,59136230,nid004158,16.12 (Debian 16.12-1.pgdg13+1),3.11.7,64000,30,6,20260930T220313Z-9a86d46a,postgres-telemetry,30,6,28
+baseline,influx,metadata,59188702,nid004584,2.9.1,3.11.7,1024,30,6,20261002T060120Z-6d8d2b02,influx-metadata,30,6,34
+baseline,influx,telemetry,59188703,nid004722,2.9.1,3.11.7,1024,30,6,20261002T060117Z-db0b5b66,influx-telemetry,30,6,34

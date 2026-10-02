@@ -1,0 +1,6 @@
+numpy==2.3.5
+scipy==1.17.0
+matplotlib==3.10.8
+reportlab==4.4.9
+PyYAML==6.0.3
+pypdf==6.10.0
