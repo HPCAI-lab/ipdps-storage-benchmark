@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 from process_metrics import process_snapshot, process_delta, summarize_resources
 from backend_factory import connect_backend
+from mixed_workloads import query_ids, query_workload
 
 
 def read_worker(worker_id, cfg, db_path, start_event, messages):
@@ -15,20 +16,23 @@ def read_worker(worker_id, cfg, db_path, start_event, messages):
         backend = connect_backend(cfg, db_path, read_only=True)
         base = datetime(2024, 1, 1, tzinfo=timezone.utc)
         latencies = []
+        queries_by_workload = {"metadata": 0, "telemetry": 0}
         messages.put({"kind": "ready", "worker": worker_id})
         if not start_event.wait(cfg["timeout"]):
             raise TimeoutError("Read phase start timed out")
 
         usage_start = process_snapshot()
-        for query_id in range(worker_id, cfg["read_queries"], cfg["clients"]):
+        population = cfg["records"] // 2 if cfg["workload"] == "mixed" else cfg["records"]
+        for query_id in query_ids(cfg, worker_id):
+            current_workload = query_workload(cfg, query_id)
             rng = random.Random(cfg["seed"] + 1000000000 + query_id)
-            first = rng.randrange(cfg["records"] - cfg["query_window"] + 1)
+            first = rng.randrange(population - cfg["query_window"] + 1)
             last = first + cfg["query_window"]
             start_ts = base + timedelta(milliseconds=first * 100)
             end_ts = base + timedelta(milliseconds=(last - 1) * 100)
 
             started = time.perf_counter()
-            if cfg["workload"] == "metadata":
+            if current_workload == "metadata":
                 rows = backend.query_scientific_metadata_range(first, last)
             else:
                 rows = backend.query_telemetry_range(start_ts, end_ts)
@@ -36,7 +40,7 @@ def read_worker(worker_id, cfg, db_path, start_event, messages):
 
             if len(rows) != cfg["query_window"]:
                 raise RuntimeError(f"Wrong row count for query {query_id}")
-            if cfg["workload"] == "metadata":
+            if current_workload == "metadata":
                 valid = [row[0] for row in rows] == list(range(first, last))
             else:
                 valid = all(
@@ -46,6 +50,7 @@ def read_worker(worker_id, cfg, db_path, start_event, messages):
                 )
             if not valid:
                 raise RuntimeError(f"Wrong returned keys for query {query_id}")
+            queries_by_workload[current_workload] += 1
 
         finished = time.perf_counter()
         metrics = process_delta(usage_start)
@@ -54,6 +59,7 @@ def read_worker(worker_id, cfg, db_path, start_event, messages):
         messages.put({
             "kind": "done", "worker": worker_id,
             "finished": finished, "latencies_ms": latencies, "resources": metrics,
+            "queries_by_workload": queries_by_workload,
         })
     except Exception as exc:
         messages.put({
@@ -120,10 +126,17 @@ def run_read_phase(cfg, db_path):
             **summarize_resources(done, "read", elapsed),
             "read_cache_state": "warm_after_write_checkpoint_and_validation",
             "read_query_type": (
+                "alternating_metadata_telemetry_pairs" if cfg["workload"] == "mixed" else
                 "record_id_range" if cfg["workload"] == "metadata"
                 else "timestamp_range"
             ),
             "read_queries_completed": len(values),
+            "metadata_read_queries": sum(item["queries_by_workload"]["metadata"] for item in done),
+            "telemetry_read_queries": sum(item["queries_by_workload"]["telemetry"] for item in done),
+            "read_worker_queries_by_workload": [
+                {"worker": item["worker"], **item["queries_by_workload"]}
+                for item in sorted(done, key=lambda x: x["worker"])
+            ],
             "read_rows_returned": len(values) * cfg["query_window"],
             "read_wall_s": elapsed,
             "read_queries_per_s": len(values) / elapsed,

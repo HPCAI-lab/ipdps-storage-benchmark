@@ -15,6 +15,7 @@ from pathlib import Path
 
 import yaml
 from process_metrics import SUMMARY_FIELDS
+from mixed_workloads import MIXED_FIELDS, validate_mixed_config
 from server_metrics import SERVER_FIELDS
 
 ROOT = Path(__file__).resolve().parent
@@ -31,6 +32,7 @@ FIELDS = [
     "error", "raw_file",
 ]
 FIELDS += SUMMARY_FIELDS
+FIELDS += MIXED_FIELDS
 FIELDS += SERVER_FIELDS
 FIELDS += ["pair_id", "profiling_comparison"]
 FIELDS += ["influxdb_version", "influx_schema_version", "acknowledged_records", "write_batches",
@@ -47,8 +49,8 @@ def _build_single_mode_plan(cfg):
         raise ValueError("server_profiling must be a boolean")
     if cfg.get("server_profiling", False) and cfg.get("database") not in ("postgresql", "influxdb"):
         raise ValueError("Server profiling requires PostgreSQL or InfluxDB")
-    if cfg.get("workload") not in ("metadata", "telemetry"):
-        raise ValueError("workload must be metadata or telemetry")
+    if cfg.get("workload") not in ("metadata", "telemetry", "mixed"):
+        raise ValueError("workload must be metadata, telemetry, or mixed")
     if cfg.get("database") not in ("sqlite", "postgresql", "influxdb"):
         raise ValueError("database must be sqlite, postgresql, or influxdb")
     if cfg["database"] == "postgresql":
@@ -104,6 +106,7 @@ def _build_single_mode_plan(cfg):
         raise ValueError("query_window must be between 1 and records")
     if queries and queries < max(cfg["clients"]):
         raise ValueError("Each client must receive at least one query")
+    validate_mixed_config(cfg)
     rng = random.Random(cfg["seed"])
     plan = []
     for phase, count in (("warmup", cfg["warmup_repetitions"]),
@@ -187,7 +190,7 @@ def main():
     (output / "plan.json").write_text(json.dumps(plan, indent=2) + "\n")
     paths = [ROOT / "experiment.py", ROOT / "concurrent_sqlite.py", ROOT / "storage.py", ROOT / "pilot_workloads.py", ROOT / "read_phase.py", ROOT / "process_metrics.py"]
     paths += [ROOT / name for name in ("backend_factory.py", "pg_server.py", "concurrent_postgres.py")]
-    paths += [ROOT / "server_metrics.py", ROOT / "influx_server.py", ROOT / "concurrent_influx.py"]
+    paths += [ROOT / "server_metrics.py", ROOT / "influx_server.py", ROOT / "concurrent_influx.py", ROOT / "mixed_workloads.py"]
     paths += sorted((ROOT / "src").rglob("*.py"))
     paths += sorted((ROOT / "hpc").glob("*.sh"))
     hashes = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
@@ -195,7 +198,7 @@ def main():
     print(f"RESULTS={output}", flush=True)
 
     with (output / "results.csv").open("w", newline="") as stream:
-        writer = csv.DictWriter(stream, fieldnames=FIELDS)
+        writer = csv.DictWriter(stream, fieldnames=FIELDS, lineterminator="\n")
         writer.writeheader()
         stream.flush()
         os.fsync(stream.fileno())

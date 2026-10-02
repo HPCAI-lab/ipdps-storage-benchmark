@@ -25,6 +25,7 @@ from storage import StorageManager
 from read_phase import run_read_phase
 from pilot_workloads import build_workload
 from backend_factory import connect_backend
+from mixed_workloads import validate_sql_counts, mixed_result
 
 
 def worker(worker_id, cfg, db_path, start_event, messages):
@@ -103,7 +104,7 @@ def run(cfg, result):
     try:
         backend.connect()
         backend.initialize_schema()
-        if cfg.get("workload", "telemetry") == "metadata":
+        if cfg.get("workload", "telemetry") in ("metadata", "mixed"):
             backend.initialize_scientific_metadata_schema()
         result["journal_mode"] = backend.journal_mode
         result["synchronous"] = backend.synchronous
@@ -138,7 +139,7 @@ def run(cfg, result):
             return message
 
     workload_name = cfg.get("workload", "telemetry")
-    if workload_name == "metadata":
+    if workload_name in ("metadata", "mixed"):
         table, unique_key = "scientific_metadata", "record_id"
     elif workload_name == "telemetry":
         table, unique_key = "telemetry", "ts"
@@ -195,9 +196,9 @@ def run(cfg, result):
         checkpoint_s = checkpoint_finished - checkpoint_started
         completion_s = checkpoint_finished - started
 
-        stored, unique_timestamps = keeper.execute(
-            f"SELECT COUNT(*), COUNT(DISTINCT {unique_key}) FROM {table}"
-        ).fetchone()
+        counts = validate_sql_counts(keeper, cfg)
+        stored = sum(counts.values())
+        unique_timestamps = stored
         check = keeper.execute("PRAGMA quick_check").fetchall()
 
         if committed != cfg["records"] or stored != cfg["records"]:
@@ -237,6 +238,7 @@ def run(cfg, result):
             ],
         })
 
+        result.update(mixed_result(cfg, counts, len(latencies)))
         keeper.close()
         keeper = None
 
@@ -260,7 +262,7 @@ def run(cfg, result):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--storage", choices=["lustre", "tmpfs"], required=True)
-    parser.add_argument("--workload", choices=["metadata", "telemetry"], default="telemetry")
+    parser.add_argument("--workload", choices=["metadata", "telemetry", "mixed"], default="telemetry")
     parser.add_argument("--clients", type=int, default=1)
     parser.add_argument("--records", type=int, default=100000)
     parser.add_argument("--batch-size", type=int, default=1000)
@@ -277,6 +279,8 @@ def main():
         parser.error("read-queries must be between 0 and 100000")
     if args.read_queries and (args.read_queries < args.clients or not 1 <= args.query_window <= args.records):
         parser.error("Need at least one query per client and a valid query window")
+    from mixed_workloads import validate_mixed_config
+    validate_mixed_config({**cfg, "clients": [args.clients]})
     batches = math.ceil(args.records / args.batch_size)
     if batches < args.clients:
         parser.error("Need at least one batch per client")

@@ -5,6 +5,7 @@ import queue
 from pathlib import Path
 from concurrent_sqlite import worker, percentile
 from backend_factory import connect_backend
+from mixed_workloads import mixed_result, table_specs
 from read_phase import run_read_phase
 from process_metrics import summarize_resources
 from storage import StorageManager
@@ -86,7 +87,9 @@ def run(cfg, result, log_path):
         expected_batches = (cfg['records'] + cfg['batch_size'] - 1) // cfg['batch_size']
         if acknowledged != cfg['records'] or len(values) != expected_batches:
             raise RuntimeError('InfluxDB acknowledged record/batch count mismatch')
-        stored = backend.validate_records(cfg['workload'], cfg['records'])
+        counts = {name: backend.validate_records(name, expected)
+                  for name, table, key, expected in table_specs(cfg)}
+        stored = sum(counts.values())
         result.update(summarize_resources(done, 'write', elapsed))
         if cfg['read_queries']:
             result.update(run_read_phase(cfg, server.connection))
@@ -104,6 +107,7 @@ def run(cfg, result, log_path):
             completion_wall_s=elapsed,
             completion_throughput_records_s=acknowledged/elapsed,
             worker_committed_records=[d['committed'] for d in sorted(done,key=lambda d:d['worker'])])
+        result.update(mixed_result(cfg, counts, len(values)))
     except Exception as exc:
         result['workload_error'] = repr(exc)
         raise

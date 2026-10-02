@@ -34,7 +34,8 @@ class MetadataBatchWorkload:
 
 
 def build_workload(name, backend, batch_size, seed):
-    classes = {"telemetry": TelemetryBatchWorkload, "metadata": MetadataBatchWorkload}
+    from mixed_workloads import MixedBatchWorkload
+    classes = {"telemetry": TelemetryBatchWorkload, "metadata": MetadataBatchWorkload, "mixed": MixedBatchWorkload}
     if name not in classes:
         raise ValueError(f"Unsupported workload: {name}")
     return classes[name](backend, batch_size, seed)

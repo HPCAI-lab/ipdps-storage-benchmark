@@ -7,6 +7,7 @@ import psycopg
 from psycopg import pq
 from concurrent_sqlite import worker, percentile
 from backend_factory import connect_backend
+from mixed_workloads import validate_sql_counts, mixed_result
 from read_phase import run_read_phase
 from process_metrics import summarize_resources
 from storage import StorageManager
@@ -93,8 +94,8 @@ def run(cfg, result, log_path):
         checkpoint_start = time.perf_counter()
         conn.execute('CHECKPOINT')
         checkpoint_end = time.perf_counter()
-        table, key = ('scientific_metadata','record_id') if cfg['workload']=='metadata' else ('telemetry','ts')
-        stored, unique = conn.execute(f'SELECT count(*),count(DISTINCT {key}) FROM {table}').fetchone()
+        counts = validate_sql_counts(conn, cfg)
+        stored = unique = sum(counts.values())
         if (committed, stored, unique) != (cfg['records'],) * 3:
             raise RuntimeError(f'PostgreSQL record validation failed: {(committed, stored, unique)}')
         if len(values) != (cfg['records'] + cfg['batch_size'] - 1) // cfg['batch_size']:
@@ -115,6 +116,7 @@ def run(cfg, result, log_path):
             completion_throughput_records_s=committed/(checkpoint_end-started),
             checkpoint_policy='postgresql_automatic_plus_explicit_final_checkpoint',
             worker_committed_records=[d['committed'] for d in sorted(done,key=lambda d:d['worker'])])
+        result.update(mixed_result(cfg, counts, len(values)))
     finally:
         try:
             if backend is not None:
