@@ -7,6 +7,9 @@ def connect_backend(cfg, target, read_only=False):
     elif name == 'postgresql':
         from db_backends.postgres_backend import PostgresBackend
         backend = PostgresBackend(target)
+    elif name == 'influxdb':
+        from db_backends.influx_backend import InfluxBackend
+        backend = InfluxBackend(target, read_only=read_only)
     else:
         raise ValueError(f'Unsupported database: {name}')
     try:
@@ -14,7 +17,7 @@ def connect_backend(cfg, target, read_only=False):
         if name == 'sqlite':
             backend.conn.execute('PRAGMA query_only=ON' if read_only
                                  else 'PRAGMA busy_timeout=60000')
-        elif read_only:
+        elif name == 'postgresql' and read_only:
             backend.conn.execute('SET default_transaction_read_only=on')
         return backend
     except Exception:
