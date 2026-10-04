@@ -1,0 +1,11 @@
+study,phase,trials
+baseline,warmup,48
+baseline,measured,240
+read1024,warmup,36
+read1024,measured,180
+sql-repeats,warmup,108
+sql-repeats,measured,540
+mixed-pilots,warmup,24
+mixed-pilots,measured,120
+size-calibration,measured,48
+system-measurements,measured,48

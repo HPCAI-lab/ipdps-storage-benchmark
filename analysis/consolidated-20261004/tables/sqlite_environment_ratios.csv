@@ -1,0 +1,25 @@
+workload,storage,clients,phase,n_units,geometric_ratio,ci95_low,ci95_high,interpretation
+metadata,lustre,1,write,3,0.904169585266,0.895975373502,0.912438737824,execution environments; software versions differ
+metadata,lustre,1,read,3,0.971028931219,0.908272667129,1.03812128162,execution environments; software versions differ
+metadata,lustre,16,write,3,0.920406283301,0.89762653818,0.943764127182,execution environments; software versions differ
+metadata,lustre,16,read,3,0.966875078163,0.83869939453,1.11463943204,execution environments; software versions differ
+metadata,lustre,64,write,3,0.946816280341,0.834929313257,1.0736969639,execution environments; software versions differ
+metadata,lustre,64,read,3,0.994566219848,0.933600502969,1.05951310279,execution environments; software versions differ
+metadata,tmpfs,1,write,3,0.861021154399,0.848043982297,0.874196909356,execution environments; software versions differ
+metadata,tmpfs,1,read,3,0.932014640012,0.918302323684,0.945931712022,execution environments; software versions differ
+metadata,tmpfs,16,write,3,0.864798357596,0.843597713302,0.886531800061,execution environments; software versions differ
+metadata,tmpfs,16,read,3,1.06525625378,0.768431513154,1.47673652992,execution environments; software versions differ
+metadata,tmpfs,64,write,3,0.903474781211,0.869802728128,0.938450356485,execution environments; software versions differ
+metadata,tmpfs,64,read,3,0.92173544931,0.62483645625,1.35970977688,execution environments; software versions differ
+telemetry,lustre,1,write,3,0.930226966043,0.912777620528,0.948009886408,execution environments; software versions differ
+telemetry,lustre,1,read,3,0.91977682518,0.876273618081,0.965439778947,execution environments; software versions differ
+telemetry,lustre,16,write,3,0.910575317946,0.888279887986,0.933430353279,execution environments; software versions differ
+telemetry,lustre,16,read,3,0.925526232675,0.80772269302,1.06051100801,execution environments; software versions differ
+telemetry,lustre,64,write,3,0.902348161992,0.765494542239,1.0636682047,execution environments; software versions differ
+telemetry,lustre,64,read,3,0.960270982815,0.931372594352,0.990066023016,execution environments; software versions differ
+telemetry,tmpfs,1,write,3,0.910722698011,0.895327199434,0.926382928159,execution environments; software versions differ
+telemetry,tmpfs,1,read,3,0.891265944968,0.876598911851,0.906178383205,execution environments; software versions differ
+telemetry,tmpfs,16,write,3,0.861533303587,0.834585807783,0.889350892702,execution environments; software versions differ
+telemetry,tmpfs,16,read,3,1.09190448098,0.958335878891,1.2440892821,execution environments; software versions differ
+telemetry,tmpfs,64,write,3,0.822050374356,0.745745649571,0.906162601642,execution environments; software versions differ
+telemetry,tmpfs,64,read,3,0.892758042285,0.799838106152,0.996472806102,execution environments; software versions differ
