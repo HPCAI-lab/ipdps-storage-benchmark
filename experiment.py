@@ -35,6 +35,7 @@ FIELDS += SUMMARY_FIELDS
 FIELDS += MIXED_FIELDS
 FIELDS += SERVER_FIELDS
 FIELDS += ["pair_id", "profiling_comparison"]
+FIELDS += ["influx_validation_timeout_s", "influx_phase", "influx_failure_phase"]
 FIELDS += ["influxdb_version", "influx_schema_version", "acknowledged_records", "write_batches",
            "write_latency_unit", "write_completion_policy", "checkpoint_policy", "read_cache_state",
            "server_wal_fsync_delay", "server_wal_flush_on_shutdown",
@@ -64,6 +65,9 @@ def _build_single_mode_plan(cfg):
         if any(type(c) is not int or c < 1 or c > 64 for c in cfg["clients"]):
             raise ValueError("Initial PostgreSQL pilot supports 1 to 64 clients")
     if cfg["database"] == "influxdb":
+        validation_timeout = cfg.get("influx_validation_timeout_s", 30)
+        if type(validation_timeout) is not int or not 1 <= validation_timeout <= 1800:
+            raise ValueError("influx_validation_timeout_s must be an integer from 1 to 1800")
         if cfg.get("runtime") != "native" or cfg.get("server_runtime") != "shifter":
             raise ValueError("InfluxDB pilot requires native clients and a Shifter server")
         if cfg.get("server_image_id") != "db0bdab1e5ad5ee899c127b8c13d9c986a3ced78cd9200dd80a1064bf1533b6e":
@@ -209,6 +213,8 @@ def main():
                 trial_cfg["server_profiling"] = item.get("server_profiling", cfg.get("server_profiling", False))
             if cfg["database"] in ("postgresql", "influxdb"):
                 trial_cfg.update({k: cfg[k] for k in ("database", "server_runtime", "server_image_id")})
+            if cfg["database"] == "influxdb":
+                trial_cfg["influx_validation_timeout_s"] = cfg.get("influx_validation_timeout_s", 30)
             result = dict(config=trial_cfg, success=False, trial=trial,
                           pair_id=item.get("pair_id", ""),
                           profiling_comparison=cfg.get("profiling_comparison", False),

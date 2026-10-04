@@ -76,10 +76,17 @@ def run(cfg, result, log_path):
                   server_wal_fsync_delay='0s', server_wal_flush_on_shutdown=True)
     server = InfluxServer(storage, cfg, log_path)
     backend = None
+    result['influx_validation_timeout_s'] = cfg.get('influx_validation_timeout_s', 30)
+
+    def phase(name):
+        result['influx_phase'] = name
+        print('INFLUX_PHASE=' + name, flush=True)
+
+    phase('startup')
     try:
         health = server.start()
         result['influxdb_version'] = health['version'].lstrip('v')
-        backend = connect_backend(cfg, server.connection)
+        phase('write')
         started, done = write_phase(cfg, server.connection)
         elapsed = max(d['finished'] for d in done) - started
         acknowledged = sum(d['committed'] for d in done)
@@ -87,16 +94,9 @@ def run(cfg, result, log_path):
         expected_batches = (cfg['records'] + cfg['batch_size'] - 1) // cfg['batch_size']
         if acknowledged != cfg['records'] or len(values) != expected_batches:
             raise RuntimeError('InfluxDB acknowledged record/batch count mismatch')
-        counts = {name: backend.validate_records(name, expected)
-                  for name, table, key, expected in table_specs(cfg)}
-        stored = sum(counts.values())
-        result.update(summarize_resources(done, 'write', elapsed))
-        if cfg['read_queries']:
-            result.update(run_read_phase(cfg, server.connection))
         result.update(
-            read_cache_state='warm_after_acknowledged_writes_and_validation_no_checkpoint',
             committed_records=acknowledged, acknowledged_records=acknowledged,
-            stored_records=stored, workload_wall_s=elapsed,
+            workload_wall_s=elapsed,
             throughput_records_s=acknowledged/elapsed,
             write_batches=len(values), transactions=len(values),
             transaction_latency_samples_ms=values,
@@ -107,8 +107,23 @@ def run(cfg, result, log_path):
             completion_wall_s=elapsed,
             completion_throughput_records_s=acknowledged/elapsed,
             worker_committed_records=[d['committed'] for d in sorted(done,key=lambda d:d['worker'])])
+        result.update(summarize_resources(done, 'write', elapsed))
+        phase('validation_connect')
+        validation_target = dict(server.connection)
+        validation_target['http_timeout'] = result['influx_validation_timeout_s']
+        backend = connect_backend(cfg, validation_target)
+        counts = {}
+        for name, table, key, expected in table_specs(cfg):
+            phase('validation_' + name)
+            counts[name] = backend.validate_records(name, expected)
+        result['stored_records'] = sum(counts.values())
         result.update(mixed_result(cfg, counts, len(values)))
+        if cfg['read_queries']:
+            result['read_cache_state'] = 'warm_after_acknowledged_writes_and_validation_no_checkpoint'
+            phase('read')
+            result.update(run_read_phase(cfg, server.connection))
     except Exception as exc:
+        result['influx_failure_phase'] = result['influx_phase']
         result['workload_error'] = repr(exc)
         raise
     finally:
@@ -117,6 +132,7 @@ def run(cfg, result, log_path):
                 backend.close()
         finally:
             try:
+                phase('shutdown')
                 server.stop()
             finally:
                 result.update(server.shutdown)
@@ -127,4 +143,5 @@ def run(cfg, result, log_path):
                 or result.get('server_lifecycle_sampled_max_influxd_processes', 0) < 1):
             raise RuntimeError('InfluxDB profiling incomplete; inspect raw accounting and memory files')
     server.remove_successful_trial()
+    phase('complete')
     result['success'] = True

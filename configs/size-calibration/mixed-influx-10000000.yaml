@@ -17,3 +17,4 @@ seed: 20261002
 timeout: 1800
 server_runtime: shifter
 server_image_id: db0bdab1e5ad5ee899c127b8c13d9c986a3ced78cd9200dd80a1064bf1533b6e
+influx_validation_timeout_s: 300

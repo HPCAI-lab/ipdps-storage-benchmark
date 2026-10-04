@@ -18,3 +18,4 @@ repetitions: 5
 warmup_repetitions: 1
 seed: 20260814
 timeout: 1800
+influx_validation_timeout_s: 300
