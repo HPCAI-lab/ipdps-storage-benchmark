@@ -1,0 +1,20 @@
+{
+  "protocol": "sqlite-mechanism-v1",
+  "suite": "size-sweep",
+  "workload": "metadata_inserts_only",
+  "records": [100000, 1000000, 10000000],
+  "storage": ["lustre", "tmpfs"],
+  "clients": [1, 64],
+  "layouts": ["shared"],
+  "batch_size": 1000,
+  "read_queries": 0,
+  "repetitions": 5,
+  "warmup_repetitions": 1,
+  "seed": 20261005,
+  "journal_mode": "WAL",
+  "synchronous": "NORMAL",
+  "wal_autocheckpoint_pages": 1000,
+  "busy_timeout_ms": 60000,
+  "startup_timeout_s": 180,
+  "trial_timeout_s": 900
+}
