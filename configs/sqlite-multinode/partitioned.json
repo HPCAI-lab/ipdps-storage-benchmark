@@ -1,0 +1,19 @@
+{
+  "protocol": "sqlite-multinode-v1",
+  "workload": "metadata_inserts_only",
+  "records": 10000000,
+  "clients": 64,
+  "nodes": [1, 2, 4],
+  "storage": ["lustre", "tmpfs"],
+  "batch_size": 1000,
+  "read_queries": 0,
+  "repetitions": 5,
+  "warmup_repetitions": 1,
+  "seed": 20261005,
+  "journal_mode": "WAL",
+  "synchronous": "NORMAL",
+  "wal_autocheckpoint_pages": 1000,
+  "busy_timeout_ms": 60000,
+  "startup_timeout_s": 180,
+  "trial_timeout_s": 300
+}
