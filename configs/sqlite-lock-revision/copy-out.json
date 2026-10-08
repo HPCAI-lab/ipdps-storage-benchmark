@@ -1,0 +1,22 @@
+{
+  "protocol": "sqlite-lock-revision-v1",
+  "suite": "copy-out",
+  "workload": "metadata_inserts_only",
+  "records": [1000000, 10000000],
+  "clients": 64,
+  "batch_size": 1000,
+  "storage": ["lustre", "tmpfs"],
+  "stagger_max_s": 2.0,
+  "queue_batches": 128,
+  "application_retry_policy": "none_stop_worker_on_first_sqlite_error",
+  "journal_mode": "WAL",
+  "synchronous": "NORMAL",
+  "wal_autocheckpoint_pages": 1000,
+  "read_queries": 0,
+  "repetitions": 5,
+  "warmup_repetitions": 1,
+  "seed": 20261008,
+  "startup_timeout_s": 180,
+  "trial_timeout_s": 600,
+  "lustre_counters": true
+}
